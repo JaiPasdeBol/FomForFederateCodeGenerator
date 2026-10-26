@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<FederateFOMProvider FederateName="FedereAircraftCollision" xmlns="http://tempuri.org/FederateFOMProvider.xsd">
+  <FOMObject name="HLAobjectRoot.BaseEntity.PhysicalEntity.Platform.Aircraft">
+    <attribute>EntityType</attribute>
+    <attribute>EntityIdentifier</attribute>
+    <attribute>RadarCrossSectionSignatureIndex</attribute>
+    <attribute>TailLightsOn</attribute>
+  </FOMObject>
+  <FOMInteraction name="HLAinteractionRoot.Collision"/>
+</FederateFOMProvider>

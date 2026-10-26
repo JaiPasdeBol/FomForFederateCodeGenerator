@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objectModel xmlns="http://standards.ieee.org/IEEE1516-2025" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.ieee.org/IEEE1516-2025 http://standards.ieee.org/downloads/1516/1516.2-2025/IEEE1516-DIF-2025.xsd">
+
+  <objects>
+    <objectClass>
+      <name>HLAobjectRoot</name>
+      <objectClass>
+        <name>BaseEntity</name>
+        <objectClass>
+          <name>PhysicalEntity</name>
+            <objectClass>
+              <name>Platform</name>
+                <objectClass>
+                  <name>Aircraft</name>
+                    <objectClass>
+                      <name>Rafale</name>
+                        <objectClass>
+                          <name>RafaleAvionique</name>
+                          <attribute><name>Callsign</name><dataType>CallsignASCII</dataType></attribute>
+                          <attribute><name>PilotName</name><dataType>DisplayName</dataType></attribute>
+                          <attribute><name>Telemetry</name><dataType>PayloadOpaque</dataType></attribute>
+                          <attribute><name>Tag</name><dataType>ProtocolTag</dataType></attribute>
+                          <attribute><name>Timestamp</name><dataType>TimestampLE</dataType></attribute>
+                          <attribute><name>Gain</name><dataType>GainLE</dataType></attribute>
+                          <attribute><name>Diagnostics</name><dataType>DiagnosticsStruct</dataType></attribute>
+                        </objectClass>
+                    </objectClass>
+                </objectClass>
+            </objectClass>
+        </objectClass>
+      </objectClass>
+    </objectClass>
+  </objects>
+  <dataTypes>
+    <simpleDataTypes>
+      <simpleData><name>SerialNumberLE</name><representation>HLAinteger32LE</representation></simpleData>
+      <simpleData><name>ChecksumLE</name><representation>HLAunsignedInteger16LE</representation></simpleData>
+      <simpleData><name>TimestampLE</name><representation>HLAinteger64LE</representation></simpleData>
+      <simpleData><name>GainLE</name><representation>HLAfloat32LE</representation></simpleData>
+      <simpleData><name>CallsignASCII</name><representation>HLAASCIIstring</representation></simpleData>
+      <simpleData><name>DisplayName</name><representation>HLAunicodeString</representation></simpleData>
+      <simpleData><name>PayloadOpaque</name><representation>HLAopaqueData</representation></simpleData>
+      <simpleData><name>ProtocolTag</name><representation>HLAoctetPairBE</representation></simpleData>
+    </simpleDataTypes>
+
+    <fixedRecordDataTypes>
+      <fixedRecordData>
+        <name>DiagnosticsStruct</name>
+        <field><name>serial</name><dataType>SerialNumberLE</dataType></field>
+        <field><name>checksum</name><dataType>ChecksumLE</dataType></field>
+      </fixedRecordData>
+    </fixedRecordDataTypes>
+  </dataTypes>
+</objectModel>

@@ -1,0 +1,24 @@
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="http://tempuri.org/FederateFOMProvider.xsd"
+           targetNamespace="http://tempuri.org/FederateFOMProvider.xsd"
+           elementFormDefault="qualified"
+		   version="2010">
+ <xsd:element name="FederateFOMProvider" type="tns:FederateFOMProvider"/>
+ <xsd:complexType name="FederateFOMProvider">
+  <xsd:sequence>
+   <xsd:element name="FOMObject" type="tns:FederateFOMObject" minOccurs="0" maxOccurs="unbounded"/>
+   <xsd:element name="FOMInteraction" type="tns:FederateFOMInteraction" minOccurs="0" maxOccurs="unbounded"/>
+  </xsd:sequence>
+  <xsd:attribute name="FederateName" type="xsd:string"/>
+ </xsd:complexType>
+
+ <xsd:complexType name="FederateFOMObject" >
+  <xsd:sequence>
+   <xsd:element name="attribute"   type="xsd:string" minOccurs="0" maxOccurs="unbounded"/>
+  </xsd:sequence>
+  <xsd:attribute name="name" type="xsd:string" />
+ </xsd:complexType>
+ <xsd:complexType name="FederateFOMInteraction" >
+  <xsd:attribute name="name" type="xsd:string" />
+ </xsd:complexType>
+</xsd:schema>

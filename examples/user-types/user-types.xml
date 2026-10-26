@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Types FOM dont le developpeur gere l'encodage/decodage (option user-types-config).
+  Chemins relatifs = relatifs au dossier de CE fichier.
+  Dans chaque dossier : <Nom>.java (Java) ; <Nom>.hpp + <Nom>Codec.hpp (C++).
+  Element <java> ou <cpp> absent : la classe de secours generee est utilisee pour ce langage.
+-->
+<userTypes>
+    <userType name="WorldLocationStruct">
+        <java dir="java"/>
+        <cpp  dir="cpp"/>
+    </userType>
+
+    <userType name="LinearSegmentStruct">
+        <java dir="segments/java"/>
+        <cpp  dir="segments/cpp"/>
+    </userType>
+
+    <!-- Java seulement : le C++ utilisera la classe de secours -->
+    <userType name="MarkingStruct">
+        <java dir="marking/java"/>
+    </userType>
+</userTypes>

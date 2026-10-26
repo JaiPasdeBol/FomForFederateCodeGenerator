@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objectModel xmlns="http://standards.ieee.org/IEEE1516-2025" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.ieee.org/IEEE1516-2025 http://standards.ieee.org/downloads/1516/1516.2-2025/IEEE1516-DIF-2025.xsd">
+
+  <objects>
+    <objectClass>
+      <name>HLAobjectRoot</name>
+      <objectClass>
+        <name>BaseEntity</name>
+        <objectClass>
+          <name>PhysicalEntity</name>
+          <objectClass>
+            <name>Platform</name>
+            <objectClass>
+              <name>Aircraft</name>
+              <objectClass>
+                <name>Rafale</name>
+                <attribute><name>RadarMode</name><dataType>RadarModeEnum8</dataType></attribute>
+                <attribute><name>FuelRemaining</name><dataType>FuelKilograms</dataType></attribute>
+              </objectClass>
+            </objectClass>
+          </objectClass>
+        </objectClass>
+      </objectClass>
+    </objectClass>
+  </objects>
+  <dataTypes>
+    <simpleDataTypes>
+      <simpleData><name>FuelKilograms</name><representation>HLAfloat32BE</representation></simpleData>
+    </simpleDataTypes>
+
+    <enumeratedDataTypes>
+      <enumeratedData>
+        <name>RadarModeEnum8</name>
+        <representation>HLAoctet</representation>
+        <enumerator><name>Standby</name><value>0</value></enumerator>
+        <enumerator><name>AirToAir</name><value>1</value></enumerator>
+        <enumerator><name>AirToGround</name><value>2</value></enumerator>
+      </enumeratedData>
+    </enumeratedDataTypes>
+  </dataTypes>
+</objectModel>

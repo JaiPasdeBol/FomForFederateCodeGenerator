@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objectModel xmlns="http://standards.ieee.org/IEEE1516-2025" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.ieee.org/IEEE1516-2025 http://standards.ieee.org/downloads/1516/1516.2-2025/IEEE1516-DIF-2025.xsd">
+
+  <objects>
+    <objectClass>
+      <name>HLAobjectRoot</name>
+      <objectClass>
+        <name>BaseEntity</name>
+        <attribute><name>EntityType</name><dataType>EntityTypeStruct</dataType></attribute>
+        <attribute><name>EntityIdentifier</name><dataType>EntityIdentifierStruct</dataType></attribute>
+        <attribute><name>Spatial</name><dataType>SpatialVariantStruct</dataType></attribute>
+      </objectClass>
+    </objectClass>
+  </objects>
+  <dataTypes>
+    <simpleDataTypes>
+      <simpleData><name>Integer16</name><representation>HLAinteger16BE</representation></simpleData>
+      <simpleData><name>UnsignedInteger16</name><representation>HLAunsignedInteger16BE</representation></simpleData>
+      <simpleData><name>Integer32</name><representation>HLAinteger32BE</representation></simpleData>
+      <simpleData><name>UnsignedInteger32</name><representation>HLAunsignedInteger32BE</representation></simpleData>
+      <simpleData><name>Float32</name><representation>HLAfloat32BE</representation></simpleData>
+      <simpleData><name>Float64</name><representation>HLAfloat64BE</representation></simpleData>
+      <simpleData><name>RPRboolean</name><representation>HLAboolean</representation></simpleData>
+    </simpleDataTypes>
+
+    <fixedRecordDataTypes>
+      <fixedRecordData>
+        <name>FederateIdentifierStruct</name>
+        <field><name>siteID</name><dataType>UnsignedInteger16</dataType></field>
+        <field><name>applicationID</name><dataType>UnsignedInteger16</dataType></field>
+      </fixedRecordData>
+
+      <fixedRecordData>
+        <name>EntityIdentifierStruct</name>
+        <field><name>federateIdentifier</name><dataType>FederateIdentifierStruct</dataType></field>
+        <field><name>entityNumber</name><dataType>UnsignedInteger16</dataType></field>
+      </fixedRecordData>
+
+      <fixedRecordData>
+        <name>EntityTypeStruct</name>
+        <field><name>entityKind</name><dataType>HLAoctet</dataType></field>
+        <field><name>domain</name><dataType>HLAoctet</dataType></field>
+        <field><name>countryCode</name><dataType>UnsignedInteger16</dataType></field>
+        <field><name>category</name><dataType>HLAoctet</dataType></field>
+        <field><name>subcategory</name><dataType>HLAoctet</dataType></field>
+        <field><name>specific</name><dataType>HLAoctet</dataType></field>
+        <field><name>extra</name><dataType>HLAoctet</dataType></field>
+      </fixedRecordData>
+
+      <fixedRecordData>
+        <name>WorldLocationStruct</name>
+        <field><name>x</name><dataType>Float64</dataType></field>
+        <field><name>y</name><dataType>Float64</dataType></field>
+        <field><name>z</name><dataType>Float64</dataType></field>
+      </fixedRecordData>
+
+      <fixedRecordData>
+        <name>OrientationStruct</name>
+        <field><name>psi</name><dataType>Float32</dataType></field>
+        <field><name>theta</name><dataType>Float32</dataType></field>
+        <field><name>phi</name><dataType>Float32</dataType></field>
+      </fixedRecordData>
+
+      <fixedRecordData>
+        <name>VelocityVectorStruct</name>
+        <field><name>xVelocity</name><dataType>Float32</dataType></field>
+        <field><name>yVelocity</name><dataType>Float32</dataType></field>
+        <field><name>zVelocity</name><dataType>Float32</dataType></field>
+      </fixedRecordData>
+
+      <fixedRecordData>
+        <name>AccelerationVectorStruct</name>
+        <field><name>xAcceleration</name><dataType>Float32</dataType></field>
+        <field><name>yAcceleration</name><dataType>Float32</dataType></field>
+        <field><name>zAcceleration</name><dataType>Float32</dataType></field>
+      </fixedRecordData>
+
+      <fixedRecordData>
+        <name>AngularVelocityVectorStruct</name>
+        <field><name>xAngularVelocity</name><dataType>Float32</dataType></field>
+        <field><name>yAngularVelocity</name><dataType>Float32</dataType></field>
+        <field><name>zAngularVelocity</name><dataType>Float32</dataType></field>
+      </fixedRecordData>
+    </fixedRecordDataTypes>
+
+    <variantRecordDataTypes>
+      <variantRecordData>
+        <name>SpatialVariantStruct</name>
+        <discriminant>deadReckoningAlgorithm</discriminant>
+        <dataType>HLAoctet</dataType>
+        <alternative><enumerator>0</enumerator><name>worldLocation</name><dataType>WorldLocationStruct</dataType></alternative>
+        <alternative><enumerator>1</enumerator><name>orientation</name><dataType>OrientationStruct</dataType></alternative>
+        <alternative><enumerator>2</enumerator><name>velocity</name><dataType>VelocityVectorStruct</dataType></alternative>
+        <alternative><enumerator>3</enumerator><name>acceleration</name><dataType>AccelerationVectorStruct</dataType></alternative>
+        <alternative><enumerator>4</enumerator><name>angularVelocity</name><dataType>AngularVelocityVectorStruct</dataType></alternative>
+      </variantRecordData>
+    </variantRecordDataTypes>
+  </dataTypes>
+</objectModel>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FederateFOMProvider xmlns="http://tempuri.org/FederateFOMProvider.xsd" FederateName="RafaleCockpit">
+  <!-- RafaleAvionique est un objet feuille (BaseEntity -> PhysicalEntity -> Platform
+       -> Aircraft -> Rafale -> RafaleAvionique) : ses ancetres non listes ici seront
+       generes INTEGRALEMENT (toutes leurs attributs propres), pas seulement filtres. -->
+  <FOMObject name="RafaleAvionique">
+    <attribute>Callsign</attribute>
+    <attribute>Timestamp</attribute>
+    <!-- EntityIdentifier est en realite declare sur BaseEntity (heritage) : le
+         generateur doit le placer dans BaseEntity, pas dupliquer un champ sous
+         RafaleAvionique. -->
+    <attribute>EntityIdentifier</attribute>
+    <!-- HatchState est en realite declare sur Platform (heritage). -->
+    <attribute>HatchState</attribute>
+  </FOMObject>
+
+  <!-- PhysicalEntity est lui-meme explicitement demande (en plus d'etre un
+       ancetre de RafaleAvionique) : seul DamageState doit etre conserve pour
+       cette classe, ForceIdentifier/Marking/ArticulatedParametersArray doivent
+       disparaitre. -->
+  <FOMObject name="PhysicalEntity">
+    <attribute>DamageState</attribute>
+  </FOMObject>
+
+  <!-- MunitionDetonation est un enfant de WeaponFire : WeaponFire doit donc etre
+       genere integralement (tous ses parametres), meme si non liste ici. -->
+  <FOMInteraction name="MunitionDetonation"/>
+</FederateFOMProvider>

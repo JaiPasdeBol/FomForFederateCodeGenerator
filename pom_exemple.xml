@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  pom_exemple.xml
+  ===============
+  POM d'exemple pour un PROJET FEDERE : il appelle rprfom-codegen pour generer,
+  a chaque build, les sources Java (compilees avec le federe) et C++ (.hpp)
+  a partir :
+    - d'un ou plusieurs fichiers FOM XML (RPR-FOM + enrichissements eventuels),
+    - du fichier FederateFOMProvider produit par l'outil FOMProvider
+      (federatesFOMProvider.xsd) qui liste les objets / attributs / interactions
+      necessaires a ce federe.
+
+  Prerequis (une seule fois) : installer le generateur dans le depot Maven local,
+  depuis le projet rprfom-codegen :
+        mvn clean install
+
+  Utilisation, depuis le dossier de ce pom (renomme en pom.xml) :
+        mvn generate-sources      -> genere seulement Java + C++
+        mvn compile               -> genere puis compile le Java
+        mvn package               -> jar du federe
+
+  Sorties par defaut :
+        Java : target/generated-sources/rprfom/java/src/main/java/...   (ajoute aux sources compilees)
+        C++  : target/generated-sources/rprfom/cpp/include/rprfom/...   (a mettre dans le include path)
+
+  Tout se surcharge en ligne de commande, ex. :
+        mvn generate-sources -Dfederate.fom=federate/AutreFedere.xml -Drprfom.java.package=com.monfede.fom
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- A adapter au federe -->
+    <groupId>com.exemple.federe</groupId>
+    <artifactId>federe-aircraft-collision</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <name>federe-aircraft-collision</name>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Version du generateur (installe via "mvn install" dans rprfom-codegen) -->
+        <rprfom.codegen.version>1.0.0</rprfom.codegen.version>
+
+        <!-- ============ Entrees ============ -->
+        <!-- Dossier des FOM XML (RPR-FOM, enrichissements...) -->
+        <fom.dir>${project.basedir}/FOM</fom.dir>
+        <!-- FOM a fusionner. Ajouter une paire fom/fichier dans la config exec
+             ci-dessous pour un enrichissement (ex. MonEnrichissement.xml). -->
+        <fom.rpr>${fom.dir}/RPR_FOM_v2.0_1516-2010.xml</fom.rpr>
+        <!-- Fichier genere par FOMProvider pour CE federe -->
+        <federate.fom>${project.basedir}/federate/FedereAircraftCollision.xml</federate.fom>
+
+        <!-- ============ Sorties ============ -->
+        <rprfom.java.package>rprfom</rprfom.java.package>
+        <rprfom.out.dir>${project.build.directory}/generated-sources/rprfom</rprfom.out.dir>
+        <rprfom.out.java>${rprfom.out.dir}/java</rprfom.out.java>
+        <rprfom.out.cpp>${rprfom.out.dir}/cpp</rprfom.out.cpp>
+    </properties>
+
+    <dependencies>
+        <!-- Le generateur n'est utilise qu'au build : "provided" = present dans le
+             classpath de exec:exec, mais pas livre avec le federe. -->
+        <dependency>
+            <groupId>com.rprfom</groupId>
+            <artifactId>rprfom-codegen</artifactId>
+            <version>${rprfom.codegen.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Ajouter ici l'API RTI utilisee par le federe (Portico, Pitch, MAK...) -->
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <!-- 1) Lance rprfom.codegen.Main pendant la phase generate-sources -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-fom-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <arguments>
+                                <argument>-cp</argument>
+                                <classpath/>
+                                <argument>rprfom.codegen.Main</argument>
+
+                                <!-- FOM(s) : repeter la paire argument fom / fichier pour fusionner plusieurs fichiers -->
+                                <argument>--fom</argument>
+                                <argument>${fom.rpr}</argument>
+                                <!-- Enrichissement : dupliquer les 2 lignes ci-dessus avec ${fom.dir}/MonEnrichissement.xml -->
+
+                                <!-- Fichier issu du FOMProvider : ne genere que le necessaire au federe -->
+                                <argument>--federate-fom</argument>
+                                <argument>${federate.fom}</argument>
+
+                                <argument>--java-package</argument>
+                                <argument>${rprfom.java.package}</argument>
+                                <argument>--out-java</argument>
+                                <argument>${rprfom.out.java}</argument>
+                                <argument>--out-cpp</argument>
+                                <argument>${rprfom.out.cpp}</argument>
+
+                                <!-- OPTIONNEL : types dont le developpeur gere l'encodage (voir README, section
+                                     "Types a responsabilite du developpeur"). Sans fichier fourni, la
+                                     classe de secours generee est utilisee. Ajouter, sous forme d'elements
+                                     <argument> successifs (option puis valeur), les options suivantes
+                                     (chacune precedee de deux tirets) :
+                                       user-type WorldLocationStruct
+                                       user-types-java ${basedir}/src/fom-user-types/java
+                                       user-types-cpp  ${basedir}/src/fom-user-types/cpp
+                                       strict-user-types   (option sans valeur) -->
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 2) Ajoute le Java genere aux sources compilees du federe -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>add-generated-java</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${rprfom.out.java}/src/main/java</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+
+        </plugins>
+    </build>
+</project>

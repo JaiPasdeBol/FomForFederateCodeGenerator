@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FederateFOMProvider xmlns="http://tempuri.org/FederateFOMProvider.xsd" FederateName="Bidon">
+  <FOMObject name="ObjetInexistant">
+    <attribute>Truc</attribute>
+  </FOMObject>
+  <FOMObject name="Rafale">
+    <attribute>AttributInexistant</attribute>
+    <attribute>RadarMode</attribute>
+  </FOMObject>
+  <FOMInteraction name="InteractionInexistante"/>
+  <FOMInteraction name="WeaponFire"/>
+</FederateFOMProvider>

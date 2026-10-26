@@ -1,0 +1,7 @@
+build/
+target/
+*.class
+
+/resultatCpp/
+/resultatCppUnreal/
+/resultatJava/

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<FederateFOMProvider FederateName="PilotedAircraftFederate" xmlns="http://tempuri.org/FederateFOMProvider.xsd">
+  <FOMObject name="HLAobjectRoot.BaseEntity.PhysicalEntity.Platform.Aircraft">
+    <attribute>EntityType</attribute>
+    <attribute>Spatial</attribute>
+  </FOMObject>
+</FederateFOMProvider>

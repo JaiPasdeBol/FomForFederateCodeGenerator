@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objectModel xmlns="http://standards.ieee.org/IEEE1516-2025" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.ieee.org/IEEE1516-2025 http://standards.ieee.org/downloads/1516/1516.2-2025/IEEE1516-DIF-2025.xsd">
+
+  <interactions>
+    <interactionClass>
+      <name>HLAinteractionRoot</name>
+      <interactionClass>
+        <name>PaddingTest</name>
+        <parameter><name>Data</name><dataType>MisalignedTestStruct</dataType></parameter>
+      </interactionClass>
+    </interactionClass>
+  </interactions>
+  <dataTypes>
+    <fixedRecordDataTypes>
+      <fixedRecordData>
+        <name>MisalignedTestStruct</name>
+        <field><name>flag</name><dataType>HLAoctet</dataType></field>
+        <field><name>id</name><dataType>EntityIdentifierStruct</dataType></field>
+      </fixedRecordData>
+    </fixedRecordDataTypes>
+  </dataTypes>
+</objectModel>
