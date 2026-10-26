@@ -282,7 +282,15 @@ fichier :
   `xs:anyAttribute` du groupe `commonAttributes`, élargi de
   `namespace="##other"` à `namespace="##any" processContents="skip"`)
   — ces attributs ne sont de toute façon jamais lus par `FomXmlParser`,
-  qui ignore entièrement les attributs XML.
+  qui ignore entièrement les attributs XML ;
+- `RPR-Base_v3.0.xml` (RPR-FOM v3.0/2025 officiel, cf. section dédiée
+  plus bas) porte, dans sa section `<time>`, les noms d'éléments hérités
+  `<timeStamp>`/`<lookahead>` plutôt que `<logicalTime>`/
+  `<logicalTimeInterval>` attendus par les deux révisions du schéma DIF
+  — cette section n'est de toute façon jamais lue par `FomXmlParser`
+  (elle ne produit aucune classe), donc ce rejet précis est dégradé en
+  avertissement non bloquant plutôt que de forcer
+  `--skip-xsd-validation` pour tout le fichier.
 
 **Point important découvert en pratique** : l'ordre des éléments compte
 dans ce schéma (`<objects>`/`<interactions>` doivent précéder
@@ -433,6 +441,76 @@ tous corrigés :
   Le design Java (indexé par nom de champ, jamais par type) n'a jamais
   eu ce problème.
 
+## Validé contre les fichiers RPR-FOM v3.0 officiels (SISO-STD-001.1-2025)
+
+Même démarche que pour le RPR-FOM 2.0 ci-dessus, appliquée cette fois aux
+**15 fichiers normatifs** publiés par le SISO pour la RPR-FOM v3.0/2025
+(`SISO-STD-001.1-2025 Annex A Files Normative/*.xml` — `RPR-Base`,
+`RPR-Physical`, `RPR-Communication`, `RPR-DER`, `RPR-Enumerations`,
+`RPR-Foundation`, `RPR-IO`, `RPR-Logistics`, `RPR-Minefield`, `RPR-SE`,
+`RPR-SIMAN`, `RPR-Switches`, `RPR-UA`, `RPR-Warfare`, `RPR-Aggregate`) :
+**génération, compilation (C++, Java et couche Unreal) et round-trip
+encodage/décodage réussis de bout en bout**, sur les 706 types de
+données et 94 `objectClass`/99 `interactionClass` fusionnés des 15
+fichiers. Ce passage grandeur nature sur la révision 2025 du standard a
+révélé des constructions réelles du FOM que le générateur, validé
+jusque-là sur le RPR-FOM 2.0 et des FOM de test plus simples, ne savait
+pas encore traiter :
+
+- **`HLAinteger64Time`/`HLAfloat64Time` non reconnus** : ces deux
+  représentations d'horodatage sont définies par le MIM (Management
+  Object Model) du socle HLA 1516.2 lui-même, pas redéclarées dans les
+  fichiers FOM (utilisées 3 fois dans `RPR-Base_v3.0.xml`) — le
+  générateur ne connaissait que les représentations explicitement
+  listées *dans* le FOM. Ajoutées en dur à la liste des représentations
+  de base reconnues (encodage identique à `HLAinteger64BE`/
+  `HLAfloat64BE`), y compris côté table de correspondance Unreal
+  (`HLAinteger64Time` → `int64`, `HLAfloat64Time` → `double`), qui est
+  séparée de celle utilisée par les générateurs C++/Java et ne les
+  connaissait donc pas non plus.
+- **Alternative de `variantRecordData` à discriminant multiple** : le
+  schéma OMT autorise qu'une alternative soit associée à une *liste*
+  d'énumérateurs séparés par des virgules plutôt qu'à un seul — cas réel
+  dans `RPR-Communication_v3.0.xml`
+  (`<enumerator>HAVE_QUICK_I, HAVE_QUICK_II, SATURN</enumerator>` sur
+  l'alternative `BasicHAVEQUICKModulation`), c'est-à-dire que plusieurs
+  valeurs du discriminant doivent toutes mener à la même alternative.
+  Le générateur ne gérait qu'un seul énumérateur par alternative ;
+  il génère désormais, côté Java comme C++, toutes les valeurs listées
+  pour une même alternative (en C++ : plusieurs `case` qui tombent dans
+  le même bloc).
+- **Tableau à cardinalité FIXE (`HLAfixedArray`) utilisé ailleurs qu'en
+  champ simple** : le générateur ne savait créer, côté Java, une classe
+  wrapper que pour les tableaux *dynamiques* ; pour un tableau fixe, il
+  échouait dès qu'il fallait l'utiliser imbriqué dans un autre tableau
+  (`OpaqueDatum64` dans `OpaqueDatum64Array1Plus`,
+  `RPR-Base_v3.0.xml`), comme alternative de variant, ou comme attribut
+  direct (`ASCIIcharArray8` sur `ModeSTransponder.AircraftIdentification`,
+  `RPR-DER_v3.0.xml`). Le générateur crée désormais une classe wrapper
+  pour tous les tableaux (fixes ou dynamiques), avec un codec dédié qui
+  lit/écrit exactement N éléments, sans compteur sur le fil — côté C++,
+  un tableau fixe reste représenté de façon purement structurelle
+  (`std::array<T, N>`, jamais de wrapper nommé), ce qui a nécessité
+  d'ajouter les spécialisations génériques `HLAEncoderDetail`/
+  `HLADecoderDetail` correspondantes (absentes jusque-là, le seul cas
+  générique préexistant étant `std::vector<T>`) : un oubli resté invisible
+  à la compilation (les templates C++ ne sont vérifiés qu'à l'usage) et
+  qui n'est apparu qu'à l'écriture d'un vrai test d'encodage **puis**
+  décodage — une simple compilation ne suffit donc pas à valider cette
+  sortie, leçon désormais appliquée systématiquement.
+- **`variantRecordData` sans aucune alternative** :
+  `ModeSDownlinkAircraftParameterVariantStruct`
+  (`RPR-DER_v3.0.xml`) est déclaré avec zéro `<alternative>` — un cas
+  limite réel du standard, marqué d'un encodage spécifique
+  (`RPRextendedVariantRecord`). Un `std::variant<>` C++ vide étant
+  invalide, le générateur insère désormais `std::monostate` comme type
+  de remplissage dans ce cas ; une tentative d'encoder une telle
+  structure lève une erreur explicite à l'exécution (il n'y a de toute
+  façon rien à encoder).
+- **Section `<time>` en noms d'éléments hérités** : cf. l'avertissement
+  non bloquant dédié dans la section de validation XSD ci-dessus
+  (`<timeStamp>`/`<lookahead>` dans `RPR-Base_v3.0.xml`).
+
 ## Types « à responsabilité du développeur » (`--user-type`)
 
 Un développeur peut reprendre à sa charge l'encodage/décodage d'un `fixedRecordData` de la FOM
@@ -556,7 +634,9 @@ schéma FOM, jamais du fichier Java/C++ fourni par le développeur.
 - **`FString`** : perte acceptée de la distinction ASCII/Unicode des `HLAunicodeString`/`HLAASCIIstring`.
 - **Entiers 64 bits non signés** (`HLAunsignedInteger64`) : élargis en `int64`, perte
   de portée acceptée sur les très grandes valeurs (pas de support Blueprint natif
-  d'un entier 64 bits non signé).
+  d'un entier 64 bits non signé). Même traitement (élargissement, sans perte ici)
+  pour les horodatages du socle HLA `HLAinteger64Time` (→ `int64`) et
+  `HLAfloat64Time` (→ `double`).
 - **`HLAoctetPairStruct`** (représentations `HLAoctetPairBE`/`HLAoctetPairLE`) :
   exclu entièrement de cette sortie.
 
@@ -598,6 +678,11 @@ seule.
   générateur échoue explicitement à la génération si jamais rencontré
   avec un élément plus large, plutôt que de produire un encodage
   incorrect.
+- **`variantRecordData` sans aucune alternative** (cas réel rencontré
+  dans le RPR-FOM v3.0/2025, cf. section dédiée plus haut) : génère un
+  type qui compile (`std::monostate` côté C++) mais ne peut jamais être
+  encodé avec une valeur utile — c'est un cas limite du standard sans
+  contenu à transporter, pas une donnée manquante du générateur.
 - Pas de constructeurs de convenance générés pour les structs Java
   (contrairement à nos `ArticulatedParameterStruct`/etc. écrits à la
   main) : on construit par affectation de champs.
@@ -612,7 +697,10 @@ signés/non signés 16/32/64 bits en big-endian ET little-endian, flottants
 `HLAopaqueData`, `HLAhandle` — 26 représentations au total, plus les 4
 représentations `RPR`-préfixées personnalisées de la RPR-FOM
 (`RPRunsignedInteger8/16/32/64BE`, wire-identiques à leurs équivalents
-`HLA`-préfixés).
+`HLA`-préfixés), et les 2 représentations d'horodatage du socle HLA
+(`HLAinteger64Time`, `HLAfloat64Time`, définies par le MIM et non
+redéclarées dans les fichiers FOM — reconnues en dur, wire-identiques à
+`HLAinteger64BE`/`HLAfloat64BE`).
 
 Les tableaux dynamiques supportent trois encodages distincts, détectés
 via l'élément `<encoding>` du FOM (`HLAvariableArray` par défaut si
@@ -623,6 +711,17 @@ uniquement). Chaque `arrayData` nommé du FOM génère son propre type
 composé plutôt qu'un alias anonyme, pour rester correct même quand le
 même type d'élément est utilisé avec plusieurs encodages différents
 dans le même FOM (cf. section de validation ci-dessus).
+
+Les tableaux à cardinalité **fixe** (`HLAfixedArray`) sont supportés
+partout où un tableau peut apparaître dans le FOM — champ simple d'une
+structure, mais aussi imbriqué dans un autre tableau, alternative de
+`variantRecordData`, ou attribut/paramètre direct — avec le même
+mécanisme de type nommé que les tableaux dynamiques côté Java (classe
+wrapper + codec qui lit/écrit exactement N éléments, sans compteur sur
+le fil) ; côté C++, un tableau fixe reste représenté de façon purement
+structurelle (`std::array<T, N>`, jamais de wrapper nommé), via des
+spécialisations génériques de l'encodeur/décodeur plutôt qu'une par
+taille.
 
 **Point d'architecture important** : une collision de type ne peut se
 produire qu'au niveau d'un ATTRIBUT (dispatch par `Class<?>` en Java,
@@ -658,7 +757,17 @@ toutes les alternatives.
 - Le mapping discriminant ↔ alternative se fait soit par valeur
   numérique littérale (`<enumerator>0</enumerator>`), soit par nom
   d'énumérateur si le discriminant est un `enumeratedData` (résolu via
-  `TypeMapper.discriminantValueOf`).
+  `TypeMapper.discriminantValuesOf`) — **une même alternative peut être
+  associée à plusieurs valeurs de discriminant à la fois** (liste
+  d'énumérateurs séparés par des virgules, autorisée par le schéma OMT ;
+  cas réel dans la RPR-FOM v3.0/2025, cf. section de validation
+  dédiée plus haut) : toutes les valeurs listées décodent alors vers la
+  même alternative.
+- Un `variantRecordData` peut légitimement n'avoir **aucune**
+  alternative (cas limite réel du standard, cf. section de validation
+  RPR-FOM v3.0/2025 plus haut) : le type est généré et compile
+  (`std::monostate` côté C++), mais toute tentative de l'encoder lève
+  une erreur explicite, faute de contenu à transporter.
 - Un discriminant inconnu à la décodification lève une exception
   explicite (`std::logic_error` / `IllegalStateException`) plutôt que
   de produire une valeur invalide.
@@ -710,6 +819,17 @@ validé contre le fichier RPR-FOM 2.0 officiel complet et réel (cf. la
 section dédiée plus haut) : 282 types de données, 63 `objectClass`,
 78 `interactionClass`, compilation et round-trip réussis dans les deux
 langages, octets identiques entre C++ et Java.
+
+Il a de même été validé contre les **15 fichiers normatifs RPR-FOM
+v3.0/2025** officiels (`FOM/SISO-STD-001.1-2025 Annex A Files
+Normative/*.xml`, cf. la section dédiée plus haut) : 706 types de
+données, 94 `objectClass`, 99 `interactionClass`, génération et
+compilation réussies en C++, Java et sortie Unreal, avec des tests
+d'encodage **puis** décodage dédiés (pas une simple compilation) sur
+chacun des cas limites réels trouvés dans cette révision du standard
+(tableau fixe imbriqué, tableau de cardinalité 0, variant à
+discriminant multiple, variant sans alternative, tableau fixe en
+attribut direct).
 
 `test-fom/FederateExample.xml` et `test-fom/FederateBad.xml` testent
 `--federate-fom` (cf. section dédiée plus haut) sur ce même jeu de FOM,
