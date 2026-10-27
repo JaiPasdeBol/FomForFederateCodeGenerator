@@ -34,12 +34,13 @@ import java.util.stream.Stream;
  * reecrit sans etre perdu.
  *
  * Priorite de resolution : fichier explicite (--user-type-java/cpp),
- * puis convention de dossier (--user-types-java/cpp), puis classe de
- * secours.
+ * puis convention de dossier (--user-types-java/cpp), puis type integre
+ * au generateur ({@link BuiltinUserTypes}, ressources embarquees), puis
+ * classe de secours.
  */
 public final class UserTypeResolver {
 
-    public enum Source { CUSTOM, FALLBACK }
+    public enum Source { CUSTOM, BUILTIN, FALLBACK }
 
     /** Resultat de resolution pour UN type. */
     public static final class Entry {
@@ -49,6 +50,16 @@ public final class UserTypeResolver {
         public final UserTypeLayout layout;
         /** Octet boundary (alignement) du type selon la FOM. */
         public final int boundary;
+        /**
+         * true si ce type a ete declare explicitement en ligne de commande
+         * (--user-type ou equivalent), false s'il provient uniquement du
+         * registre des types integres au generateur ({@link BuiltinUserTypes}).
+         * Determine la severite des verifications en {@link #resolve} / notFound :
+         * une anomalie sur un type integre ne declenche jamais --strict-user-types
+         * ni une erreur bloquante, ce mecanisme devant fonctionner sans
+         * configuration sur n'importe quel FOM.
+         */
+        public boolean explicitlyDeclared = true;
 
         public Source javaSource = Source.FALLBACK;
         public Path javaFile;
@@ -96,7 +107,8 @@ public final class UserTypeResolver {
      */
     public static Plan resolve(FomModel model, Set<String> knownBeforeFilter, UserTypeOptions o, String javaPackage) {
         Plan plan = new Plan();
-        if (!o.isActive()) return plan;
+        List<String> builtinNames = BuiltinUserTypes.registeredNames();
+        if (!o.isActive() && builtinNames.isEmpty()) return plan;
         TypeMapper mapper = new TypeMapper(model);
 
         // Noms de classes deja utilises par les classes d'objet/interaction generees (collision de fichier).
@@ -104,37 +116,23 @@ public final class UserTypeResolver {
         collectObjectNames(model.root, generatedClassNames, true);
         collectInteractionNames(model.interactionRoot, generatedClassNames, true);
 
-        // --- 1) Declarations : dedoublonnage + validation contre la FOM ---
+        // --- 1) Declarations explicites (CLI) : dedoublonnage + validation STRICTE contre la FOM ---
         Set<String> seen = new LinkedHashSet<>();
         for (String name : o.declared) {
             if (!seen.add(name)) {
                 plan.warnings.add("Type '" + name + "' declare plusieurs fois : declaration ignoree.");
                 continue;
             }
-            if (!knownBeforeFilter.contains(name)) {
-                plan.errors.add("Type '" + name + "' inconnu dans la FOM." + suggestion(name, knownBeforeFilter));
-                continue;
-            }
-            DataType dt = model.dataType(name);
-            if (dt == null) {
-                plan.warnings.add("Type '" + name + "' non utilise par ce federe (retire par --federate-fom) : "
-                        + "declaration ignoree, rien n'est genere ni copie pour lui.");
-                continue;
-            }
-            if (!(dt instanceof DataType.FixedRecord)) {
-                plan.errors.add("Type '" + name + "' : seuls les fixedRecordData peuvent etre geres par le developpeur "
-                        + "(ce type est un " + kindOf(dt) + "). Les enumerations, tableaux et variants ont une forme "
-                        + "generee particuliere qui n'est pas prise en charge.");
-                continue;
-            }
-            String cls = NameUtils.sanitizeIdentifier(name);
-            if (generatedClassNames.contains(cls)) {
-                plan.errors.add("Type '" + name + "' : le nom '" + cls + "' est deja utilise par une classe d'objet ou "
-                        + "d'interaction generee (collision de fichier).");
-                continue;
-            }
-            plan.entries.add(new Entry(name, UserTypeFingerprint.compute(model, mapper, name),
-                    UserTypeLayout.compute(model, mapper, name), mapper.octetBoundaryOf(name)));
+            addEntry(name, true, model, knownBeforeFilter, generatedClassNames, mapper, plan);
+        }
+
+        // --- 1bis) Types integres au generateur (BuiltinUserTypes) : memes types,
+        //           mais validation SOUPLE -- jamais d'erreur bloquante pour un type
+        //           que le projet n'a jamais demande explicitement (cf. addEntry).
+        //           Un nom deja declare explicitement ci-dessus garde la main.
+        for (String name : builtinNames) {
+            if (!seen.add(name)) continue;
+            addEntry(name, false, model, knownBeforeFilter, generatedClassNames, mapper, plan);
         }
 
         // --- 2) Resolution par langage ---
@@ -151,6 +149,61 @@ public final class UserTypeResolver {
         return plan;
     }
 
+    /**
+     * Valide un nom de type contre la FOM et, si valide, cree son {@link Entry}.
+     * {@code explicitDecl} decide la severite : une declaration CLI explicite
+     * (--user-type et equivalents) produit une erreur bloquante sur tout ecart,
+     * comme avant ; un type qui ne provient QUE du registre des types integres
+     * au generateur ({@link BuiltinUserTypes}) est silencieusement ignore sur le
+     * meme ecart (ou, quand c'est utile a la mise au point du generateur,
+     * signale par un simple avertissement) -- jamais une erreur qui interromprait
+     * la generation d'un projet qui n'a rien demande de particulier.
+     */
+    private static void addEntry(String name, boolean explicitDecl, FomModel model, Set<String> knownBeforeFilter,
+                                  Set<String> generatedClassNames, TypeMapper mapper, Plan plan) {
+        if (!knownBeforeFilter.contains(name)) {
+            if (explicitDecl) {
+                plan.errors.add("Type '" + name + "' inconnu dans la FOM." + suggestion(name, knownBeforeFilter));
+            }
+            // Type integre non declare explicitement : silencieux, cette FOM ne definit simplement pas ce type.
+            return;
+        }
+        DataType dt = model.dataType(name);
+        if (dt == null) {
+            if (explicitDecl) {
+                plan.warnings.add("Type '" + name + "' non utilise par ce federe (retire par --federate-fom) : "
+                        + "declaration ignoree, rien n'est genere ni copie pour lui.");
+            }
+            return;
+        }
+        if (!(dt instanceof DataType.FixedRecord)) {
+            String msg = "seuls les fixedRecordData peuvent etre geres par le developpeur (ce type est un "
+                    + kindOf(dt) + "). Les enumerations, tableaux et variants ont une forme generee particuliere "
+                    + "qui n'est pas prise en charge.";
+            if (explicitDecl) {
+                plan.errors.add("Type '" + name + "' : " + msg);
+            } else {
+                plan.warnings.add("Type integre au generateur '" + name + "' ignore : " + msg);
+            }
+            return;
+        }
+        String cls = NameUtils.sanitizeIdentifier(name);
+        if (generatedClassNames.contains(cls)) {
+            String msg = "le nom '" + cls + "' est deja utilise par une classe d'objet ou d'interaction generee "
+                    + "(collision de fichier).";
+            if (explicitDecl) {
+                plan.errors.add("Type '" + name + "' : " + msg);
+            } else {
+                plan.warnings.add("Type integre au generateur '" + name + "' ignore : " + msg);
+            }
+            return;
+        }
+        Entry e = new Entry(name, UserTypeFingerprint.compute(model, mapper, name),
+                UserTypeLayout.compute(model, mapper, name), mapper.octetBoundaryOf(name));
+        e.explicitlyDeclared = explicitDecl;
+        plan.entries.add(e);
+    }
+
     // ====================================================================
     // Java
     // ====================================================================
@@ -161,48 +214,89 @@ public final class UserTypeResolver {
         if (file == null && o.javaDir != null) {
             file = o.javaDir.resolve(e.className + ".java");
         }
-        if (file == null) {
-            notFound(e, "Java", null, false, o, plan);
+        if (file != null && Files.isRegularFile(file)) {
+            String text = read(file, plan);
+            if (text == null) return;
+
+            String cls = Pattern.quote(e.className);
+            boolean ok = true;
+            if (!Pattern.compile("\\bclass\\s+" + cls + "\\b").matcher(text).find()) {
+                plan.errors.add(prefix(e, "Java", file) + "aucune declaration 'class " + e.className + "' dans ce fichier "
+                        + "(le nom de la classe doit etre celui du type FOM).");
+                ok = false;
+            }
+            if (!Pattern.compile("static\\s+void\\s+encodeInto\\s*\\(\\s*(?:java\\.io\\.)?ByteArrayOutputStream\\s+\\w+\\s*,\\s*"
+                    + cls + "\\s+\\w+\\s*\\)").matcher(text).find()) {
+                plan.errors.add(prefix(e, "Java", file) + "methode obligatoire absente : "
+                        + "public static void encodeInto(ByteArrayOutputStream buffer, " + e.className + " value).");
+                ok = false;
+            }
+            if (!Pattern.compile("static\\s+" + cls + "\\s+decodeAt\\s*\\(\\s*byte\\s*\\[\\s*\\]\\s+\\w+\\s*,\\s*"
+                    + "(?:HLADecoding\\.)?Offset\\s+\\w+\\s*\\)").matcher(text).find()) {
+                plan.errors.add(prefix(e, "Java", file) + "methode obligatoire absente : "
+                        + "public static " + e.className + " decodeAt(byte[] bytes, HLADecoding.Offset offset).");
+                ok = false;
+            }
+            boolean hasCtor = Pattern.compile("\\b" + cls + "\\s*\\(").matcher(text).find();
+            if (hasCtor && !Pattern.compile("\\b" + cls + "\\s*\\(\\s*\\)").matcher(text).find()) {
+                plan.errors.add(prefix(e, "Java", file) + "un constructeur est declare mais aucun constructeur sans "
+                        + "argument : le code genere fait 'new " + e.className + "()'.");
+                ok = false;
+            }
+            if (!checkFingerprint(e, "Java", file, text, o, plan)) ok = false;
+            if (!ok) return;
+
+            e.javaSource = Source.CUSTOM;
+            e.javaFile = file;
+            e.javaText = text;
             return;
         }
-        if (!Files.isRegularFile(file)) {
-            notFound(e, "Java", file, explicit, o, plan);
+
+        if (explicit) {
+            // Chemin explicite (--user-type-java) mais fichier absent : erreur/avertissement de
+            // configuration precis a CE type, jamais de repli silencieux vers autre chose que le
+            // secours standard (cf. notFound) -- on ne tente donc pas le type integre ici.
+            notFound(e, "Java", file, true, o, plan);
             return;
         }
-        String text = read(file, plan);
-        if (text == null) return;
+
+        // Aucun fichier fourni par la ligne de commande pour ce type/langage (ni explicite,
+        // ni par convention) : type integre au generateur, en dernier recours avant le secours.
+        if (tryBuiltinJava(e, plan)) return;
+        notFound(e, "Java", null, false, o, plan);
+    }
+
+    /**
+     * Tente le recouvrement Java integre au generateur ({@link BuiltinUserTypes}) pour ce type,
+     * uniquement appele quand aucun fichier CLI n'a ete trouve pour lui. Validation souple :
+     * tout ecart de contrat ou d'empreinte desactive silencieusement (ou avec un simple
+     * avertissement) ce recouvrement pour CE type -- jamais une erreur bloquante.
+     */
+    private static boolean tryBuiltinJava(Entry e, Plan plan) {
+        String text = BuiltinUserTypes.readJava(e.className);
+        if (text == null) return false;
 
         String cls = Pattern.quote(e.className);
-        boolean ok = true;
-        if (!Pattern.compile("\\bclass\\s+" + cls + "\\b").matcher(text).find()) {
-            plan.errors.add(prefix(e, "Java", file) + "aucune declaration 'class " + e.className + "' dans ce fichier "
-                    + "(le nom de la classe doit etre celui du type FOM).");
-            ok = false;
+        boolean contractOk = Pattern.compile("\\bclass\\s+" + cls + "\\b").matcher(text).find()
+                && Pattern.compile("static\\s+void\\s+encodeInto\\s*\\(\\s*(?:java\\.io\\.)?ByteArrayOutputStream\\s+\\w+\\s*,\\s*"
+                        + cls + "\\s+\\w+\\s*\\)").matcher(text).find()
+                && Pattern.compile("static\\s+" + cls + "\\s+decodeAt\\s*\\(\\s*byte\\s*\\[\\s*\\]\\s+\\w+\\s*,\\s*"
+                        + "(?:HLADecoding\\.)?Offset\\s+\\w+\\s*\\)").matcher(text).find();
+        if (!contractOk) {
+            plan.warnings.add("Type integre au generateur '" + e.typeName + "' [Java] ignore : fichier integre "
+                    + "invalide (contrat non respecte) -- anomalie du generateur a signaler. Generation standard utilisee.");
+            return false;
         }
-        if (!Pattern.compile("static\\s+void\\s+encodeInto\\s*\\(\\s*(?:java\\.io\\.)?ByteArrayOutputStream\\s+\\w+\\s*,\\s*"
-                + cls + "\\s+\\w+\\s*\\)").matcher(text).find()) {
-            plan.errors.add(prefix(e, "Java", file) + "methode obligatoire absente : "
-                    + "public static void encodeInto(ByteArrayOutputStream buffer, " + e.className + " value).");
-            ok = false;
+        String declared = UserTypeFingerprint.declaredIn(text);
+        if (declared == null || !declared.equals(e.fingerprint)) {
+            plan.warnings.add("Type integre au generateur '" + e.typeName + "' [Java] ignore : son empreinte FOM "
+                    + "(" + (declared == null ? "absente" : declared) + ") ne correspond pas a la definition de ce "
+                    + "type dans cette FOM (" + e.fingerprint + ") -- generation standard utilisee pour ce projet.");
+            return false;
         }
-        if (!Pattern.compile("static\\s+" + cls + "\\s+decodeAt\\s*\\(\\s*byte\\s*\\[\\s*\\]\\s+\\w+\\s*,\\s*"
-                + "(?:HLADecoding\\.)?Offset\\s+\\w+\\s*\\)").matcher(text).find()) {
-            plan.errors.add(prefix(e, "Java", file) + "methode obligatoire absente : "
-                    + "public static " + e.className + " decodeAt(byte[] bytes, HLADecoding.Offset offset).");
-            ok = false;
-        }
-        boolean hasCtor = Pattern.compile("\\b" + cls + "\\s*\\(").matcher(text).find();
-        if (hasCtor && !Pattern.compile("\\b" + cls + "\\s*\\(\\s*\\)").matcher(text).find()) {
-            plan.errors.add(prefix(e, "Java", file) + "un constructeur est declare mais aucun constructeur sans "
-                    + "argument : le code genere fait 'new " + e.className + "()'.");
-            ok = false;
-        }
-        if (!checkFingerprint(e, "Java", file, text, o, plan)) ok = false;
-        if (!ok) return;
-
-        e.javaSource = Source.CUSTOM;
-        e.javaFile = file;
+        e.javaSource = Source.BUILTIN;
         e.javaText = text;
+        return true;
     }
 
     // ====================================================================
@@ -222,55 +316,97 @@ public final class UserTypeResolver {
             header = o.cppDir.resolve(e.className + ".hpp");
             codec = o.cppDir.resolve(e.className + "Codec.hpp");
         }
-        if (header == null) {
-            notFound(e, "C++", null, false, o, plan);
+
+        boolean hasHeader = header != null && Files.isRegularFile(header);
+        boolean hasCodec = codec != null && Files.isRegularFile(codec);
+
+        if (hasHeader && hasCodec) {
+            String headerText = read(header, plan);
+            String codecText = read(codec, plan);
+            if (headerText == null || codecText == null) return;
+
+            boolean ok = true;
+            String cls = Pattern.quote(e.className);
+            if (!Pattern.compile("\\b(?:struct|class)\\s+" + cls + "\\b").matcher(headerText).find()) {
+                plan.errors.add(prefix(e, "C++", header) + "aucune declaration 'struct " + e.className + "' dans ce fichier.");
+                ok = false;
+            }
+            if (!Pattern.compile("namespace\\s+rprfom\\b").matcher(headerText).find()) {
+                plan.errors.add(prefix(e, "C++", header) + "la struct doit etre declaree dans 'namespace rprfom'.");
+                ok = false;
+            }
+            if (!Pattern.compile("HLAEncoderDetail\\s*<\\s*" + cls + "\\s*>\\s*::\\s*encodeInto").matcher(codecText).find()) {
+                plan.errors.add(prefix(e, "C++", codec) + "definition obligatoire absente : "
+                        + "inline void HLAEncoderDetail<" + e.className + ">::encodeInto(std::vector<uint8_t>& b, const "
+                        + e.className + "& v).");
+                ok = false;
+            }
+            if (!Pattern.compile("HLADecoderDetail\\s*<\\s*" + cls + "\\s*>\\s*::\\s*decodeAt").matcher(codecText).find()) {
+                plan.errors.add(prefix(e, "C++", codec) + "definition obligatoire absente : inline " + e.className
+                        + " HLADecoderDetail<" + e.className + ">::decodeAt(const std::vector<uint8_t>& bytes, size_t& offset).");
+                ok = false;
+            }
+            if (!checkFingerprint(e, "C++", header, headerText, o, plan)) ok = false;
+            if (!ok) return;
+
+            e.cppSource = Source.CUSTOM;
+            e.cppHeaderFile = header;
+            e.cppCodecFile = codec;
+            e.cppHeaderText = headerText;
+            e.cppCodecText = codecText;
             return;
         }
-        boolean hasHeader = Files.isRegularFile(header);
-        boolean hasCodec = Files.isRegularFile(codec);
-        if (!hasHeader && !hasCodec) {
-            notFound(e, "C++", header, explicit, o, plan);
-            return;
-        }
+
         if (hasHeader != hasCodec) {
             plan.errors.add(prefix(e, "C++", hasHeader ? codec : header) + "fichier manquant : un type C++ se fournit en "
                     + "DEUX fichiers (" + e.className + ".hpp = la struct, " + e.className + "Codec.hpp = encodage/decodage). "
                     + "Fournir un seul des deux est presque toujours une erreur.");
             return;
         }
-        String headerText = read(header, plan);
-        String codecText = read(codec, plan);
-        if (headerText == null || codecText == null) return;
 
-        boolean ok = true;
+        // Ni header ni codec : soit header==null (aucun mecanisme CLI configure pour ce type),
+        // soit les deux sont absents du chemin CLI trouve.
+        if (explicit) {
+            notFound(e, "C++", header, true, o, plan);
+            return;
+        }
+        if (tryBuiltinCpp(e, plan)) return;
+        notFound(e, "C++", header, false, o, plan);
+    }
+
+    /**
+     * Tente le recouvrement C++ integre au generateur ({@link BuiltinUserTypes}) pour ce type,
+     * uniquement appele quand aucun fichier CLI n'a ete trouve pour lui. Meme validation souple
+     * que {@link #tryBuiltinJava} : tout ecart desactive silencieusement (ou avec un simple
+     * avertissement) ce recouvrement pour CE type, jamais une erreur bloquante.
+     */
+    private static boolean tryBuiltinCpp(Entry e, Plan plan) {
+        String[] files = BuiltinUserTypes.readCpp(e.className);
+        if (files == null) return false;
+        String headerText = files[0];
+        String codecText = files[1];
+
         String cls = Pattern.quote(e.className);
-        if (!Pattern.compile("\\b(?:struct|class)\\s+" + cls + "\\b").matcher(headerText).find()) {
-            plan.errors.add(prefix(e, "C++", header) + "aucune declaration 'struct " + e.className + "' dans ce fichier.");
-            ok = false;
+        boolean contractOk = Pattern.compile("\\b(?:struct|class)\\s+" + cls + "\\b").matcher(headerText).find()
+                && Pattern.compile("namespace\\s+rprfom\\b").matcher(headerText).find()
+                && Pattern.compile("HLAEncoderDetail\\s*<\\s*" + cls + "\\s*>\\s*::\\s*encodeInto").matcher(codecText).find()
+                && Pattern.compile("HLADecoderDetail\\s*<\\s*" + cls + "\\s*>\\s*::\\s*decodeAt").matcher(codecText).find();
+        if (!contractOk) {
+            plan.warnings.add("Type integre au generateur '" + e.typeName + "' [C++] ignore : fichiers integres "
+                    + "invalides (contrat non respecte) -- anomalie du generateur a signaler. Generation standard utilisee.");
+            return false;
         }
-        if (!Pattern.compile("namespace\\s+rprfom\\b").matcher(headerText).find()) {
-            plan.errors.add(prefix(e, "C++", header) + "la struct doit etre declaree dans 'namespace rprfom'.");
-            ok = false;
+        String declared = UserTypeFingerprint.declaredIn(headerText);
+        if (declared == null || !declared.equals(e.fingerprint)) {
+            plan.warnings.add("Type integre au generateur '" + e.typeName + "' [C++] ignore : son empreinte FOM "
+                    + "(" + (declared == null ? "absente" : declared) + ") ne correspond pas a la definition de ce "
+                    + "type dans cette FOM (" + e.fingerprint + ") -- generation standard utilisee pour ce projet.");
+            return false;
         }
-        if (!Pattern.compile("HLAEncoderDetail\\s*<\\s*" + cls + "\\s*>\\s*::\\s*encodeInto").matcher(codecText).find()) {
-            plan.errors.add(prefix(e, "C++", codec) + "definition obligatoire absente : "
-                    + "inline void HLAEncoderDetail<" + e.className + ">::encodeInto(std::vector<uint8_t>& b, const "
-                    + e.className + "& v).");
-            ok = false;
-        }
-        if (!Pattern.compile("HLADecoderDetail\\s*<\\s*" + cls + "\\s*>\\s*::\\s*decodeAt").matcher(codecText).find()) {
-            plan.errors.add(prefix(e, "C++", codec) + "definition obligatoire absente : inline " + e.className
-                    + " HLADecoderDetail<" + e.className + ">::decodeAt(const std::vector<uint8_t>& bytes, size_t& offset).");
-            ok = false;
-        }
-        if (!checkFingerprint(e, "C++", header, headerText, o, plan)) ok = false;
-        if (!ok) return;
-
-        e.cppSource = Source.CUSTOM;
-        e.cppHeaderFile = header;
-        e.cppCodecFile = codec;
+        e.cppSource = Source.BUILTIN;
         e.cppHeaderText = headerText;
         e.cppCodecText = codecText;
+        return true;
     }
 
     // ====================================================================
@@ -306,10 +442,15 @@ public final class UserTypeResolver {
         return true;
     }
 
-    /** Fichier absent : secours (avertissement), ou erreur en mode strict. */
+    /**
+     * Fichier absent : secours (avertissement), ou erreur en mode strict. Le mode strict ne
+     * s'applique jamais a un type qui ne provient QUE du registre des types integres au
+     * generateur ({@code e.explicitlyDeclared == false}) : --strict-user-types sanctionne une
+     * declaration explicite du projet, pas un type integre qu'il n'a jamais demande.
+     */
     private static void notFound(Entry e, String lang, Path file, boolean explicit, UserTypeOptions o, Plan plan) {
         String where = file != null ? " (" + file + ")" : "";
-        if (o.strict) {
+        if (o.strict && e.explicitlyDeclared) {
             plan.errors.add("Type '" + e.typeName + "' [" + lang + "] : aucun fichier fourni" + where
                     + " et --strict-user-types est actif.");
             return;

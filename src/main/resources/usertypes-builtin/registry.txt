@@ -1,0 +1,22 @@
+# Types "a responsabilite du developpeur" fournis PAR DEFAUT avec le
+# generateur (cf. rprfom.codegen.usertype.BuiltinUserTypes). Un nom de
+# type FOM (fixedRecordData) par ligne ; lignes vides et lignes commencant
+# par '#' ignorees.
+#
+# Pour chaque nom liste ici ET effectivement defini dans la FOM traitee,
+# le generateur recherche automatiquement :
+#   java/<Nom>.java
+#   cpp/<Nom>.hpp + cpp/<Nom>Codec.hpp
+# dans ce meme dossier de ressources, et les utilise a la place de la
+# generation standard -- SAUF si le projet fournit lui-meme un fichier de
+# meme nom via --user-type-java/-cpp, --user-types-java/-cpp ou
+# --user-types-config (ces mecanismes restent prioritaires, inchanges).
+#
+# Un type absent de la FOM traitee, filtre par --federate-fom, dont le
+# contrat n'est pas respecte ou dont l'empreinte FOM ne correspond pas a
+# la definition courante est simplement ignore pour ce langage (jamais
+# une erreur bloquante) : ce fichier peut etre enrichi sans risque de
+# casser un projet qui ne definit pas (ou differemment) le type ajoute.
+#
+# Aucun type integre pour le moment -- ajoutez un nom ci-dessous, puis
+# deposez java/<Nom>.java et/ou cpp/<Nom>.hpp + cpp/<Nom>Codec.hpp.

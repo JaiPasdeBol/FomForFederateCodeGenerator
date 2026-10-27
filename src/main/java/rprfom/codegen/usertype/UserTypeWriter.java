@@ -137,6 +137,10 @@ public final class UserTypeWriter {
                             + "peuvent etre nettoyes.");
                 }
                 destText = rewritePackage(e.javaText, pkg, e, plan);
+            } else if (e.javaSource == Source.BUILTIN) {
+                // Type integre au generateur (ressources) : meme traitement de package que CUSTOM,
+                // mais sans fichier projet a comparer au chemin de destination (rien a avertir ici).
+                destText = rewritePackage(e.javaText, pkg, e, plan);
             } else {
                 destText = fallbackText;
             }
@@ -313,6 +317,7 @@ public final class UserTypeWriter {
             m.write(fallbackDir.resolve(e.className + "Codec.hpp"), fbCodec, plan);
 
             boolean custom = e.cppSource == Source.CUSTOM;
+            boolean override = custom || e.cppSource == Source.BUILTIN;
             if (custom) {
                 Path destHeader = destDir.resolve(e.className + ".hpp");
                 if (e.cppHeaderFile.toAbsolutePath().normalize().equals(destHeader.toAbsolutePath().normalize())) {
@@ -320,8 +325,8 @@ public final class UserTypeWriter {
                             + "). Gardez vos sources dans un dossier a part : les dossiers generes peuvent etre nettoyes.");
                 }
             }
-            m.write(destDir.resolve(e.className + ".hpp"), custom ? e.cppHeaderText : fbHeader, plan);
-            m.write(destDir.resolve(e.className + "Codec.hpp"), custom ? e.cppCodecText : fbCodec, plan);
+            m.write(destDir.resolve(e.className + ".hpp"), override ? e.cppHeaderText : fbHeader, plan);
+            m.write(destDir.resolve(e.className + "Codec.hpp"), override ? e.cppCodecText : fbCodec, plan);
         }
         if (!plan.entries.isEmpty()) {
             m.write(includeDir.resolve("runtime").resolve("HLAUserCodecs.hpp"), gen.generateHLAUserCodecs(), plan);
@@ -441,6 +446,14 @@ public final class UserTypeWriter {
     // Rapport
     // ====================================================================
 
+    private static String sourceLabel(Source s) {
+        return switch (s) {
+            case CUSTOM -> "CUSTOM";
+            case BUILTIN -> "INTEGRE";
+            case FALLBACK -> "SECOURS";
+        };
+    }
+
     public static void printReport(Plan plan, UserTypeOptions o, Path outJava, Path outCpp) {
         System.out.println();
         System.out.println("Types a responsabilite du developpeur :");
@@ -449,10 +462,11 @@ public final class UserTypeWriter {
         System.out.println(String.format("  %-" + w + "s  %-10s  %-10s  %s", "Type", "Java", "C++", "Empreinte FOM"));
         for (Entry e : plan.entries) {
             System.out.println(String.format("  %-" + w + "s  %-10s  %-10s  %s", e.typeName,
-                    e.javaSource == Source.CUSTOM ? "CUSTOM" : "SECOURS",
-                    e.cppSource == Source.CUSTOM ? "CUSTOM" : "SECOURS", e.fingerprint));
+                    sourceLabel(e.javaSource), sourceLabel(e.cppSource), e.fingerprint));
             if (e.javaSource == Source.CUSTOM) System.out.println("      Java : " + e.javaFile);
+            if (e.javaSource == Source.BUILTIN) System.out.println("      Java : (type integre au generateur)");
             if (e.cppSource == Source.CUSTOM) System.out.println("      C++  : " + e.cppHeaderFile + " + " + e.cppCodecFile);
+            if (e.cppSource == Source.BUILTIN) System.out.println("      C++  : (type integre au generateur)");
             for (String n : e.notes) System.out.println("      note : " + n);
         }
         Path fbJava = o.fallbackDir != null ? o.fallbackDir.resolve("java") : outJava.resolve("fallback");

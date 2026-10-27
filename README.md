@@ -532,7 +532,55 @@ Périmètre v1 : `fixedRecordData` uniquement.
 | `--allow-stale-user-types` | Empreinte périmée tolérée (avertissement). |
 | `--skip-conformance-test` | Ne génère pas le test de conformité. |
 
-Priorité : fichier explicite > dossier de convention > **classe de secours**.
+Priorité : fichier explicite > dossier de convention > **type intégré au générateur** (cf. section dédiée juste après) > **classe de secours**.
+
+### Types intégrés au générateur (sans aucune option d'appel)
+
+Au-delà des types déclarés par CE projet via les options ci-dessus, le générateur
+lui-même peut embarquer, dans ses propres ressources, des types « à responsabilité
+du développeur » appliqués **par défaut, sans rien à déclarer en ligne de commande**.
+L'idée : la plupart des projets réécrivent finalement les mêmes types de la même
+façon (ex. `WorldLocationStruct` en latitude/longitude/altitude) — plutôt que
+chaque projet redéclare son propre `--user-types-java`/`--user-types-config` pour
+ces types récurrents, le générateur peut les fournir lui-même une fois pour toutes.
+
+Convention de ressources, sous `src/main/resources/usertypes-builtin/` :
+
+```
+usertypes-builtin/
+  registry.txt            -- un nom de type (fixedRecordData de la FOM) par ligne ;
+                              lignes vides et lignes commençant par '#' ignorées.
+  java/<Nom>.java          -- optionnel : recouvrement Java intégré pour ce type.
+  cpp/<Nom>.hpp
+  cpp/<Nom>Codec.hpp       -- optionnels, ensemble (comme pour --user-type-cpp).
+```
+
+Pour chaque nom listé dans `registry.txt` et effectivement défini dans la FOM
+traitée, le fichier correspondant est utilisé automatiquement — **sauf si le
+projet fournit lui-même un fichier de même nom** via `--user-type-java/-cpp`,
+`--user-types-java/-cpp` ou `--user-types-config` : ces mécanismes restent
+inchangés et toujours prioritaires, type par type et langage par langage (un
+projet peut par exemple ne reprendre la main que sur le C++ d'un type et garder
+le Java intégré). `registry.txt` est livré vide (juste des commentaires
+d'explication) : le mécanisme est en place mais n'impose aucun type par défaut
+tant que personne n'y en ajoute un.
+
+Un type intégré bénéficie d'une validation **souple**, différente de celle des
+types déclarés explicitement : absent de la FOM traitée, filtré par
+`--federate-fom`, non `fixedRecordData`, en collision de nom avec une classe
+générée, dont le contrat (méthodes/struct attendues) n'est pas respecté, ou dont
+l'empreinte FOM ne correspond pas à la définition courante du type est
+simplement **ignoré pour ce langage** (repli silencieux sur la génération
+standard, éventuellement accompagné d'un avertissement si l'anomalie révèle un
+vrai défaut du fichier intégré) — jamais une erreur bloquante. `--strict-user-types`
+ne s'applique d'ailleurs jamais à un type purement intégré (un projet ne doit
+jamais être bloqué par un type qu'il n'a lui-même jamais demandé). C'est ce qui
+permet d'enrichir ce registre sans risque de casser un projet qui ne définit pas
+(ou définit différemment) le type ajouté.
+
+Dans le rapport de fin de génération, un type intégré apparaît avec la source
+`INTEGRE` (à côté de `CUSTOM` pour un fichier du projet et `SECOURS` pour la
+génération standard).
 
 ### Classe de secours
 Pour chaque type déclaré, une classe identique au code standard est toujours régénérée dans le dossier `fallback`.

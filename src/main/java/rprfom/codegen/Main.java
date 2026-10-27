@@ -12,6 +12,7 @@ import rprfom.codegen.model.ObjectClassNode;
 import rprfom.codegen.parse.FederateFomProviderParser;
 import rprfom.codegen.parse.FomXmlParser;
 import rprfom.codegen.parse.FomXsdValidator;
+import rprfom.codegen.usertype.BuiltinUserTypes;
 import rprfom.codegen.usertype.UserTypeOptions;
 import rprfom.codegen.usertype.UserTypeResolver;
 import rprfom.codegen.usertype.UserTypeWriter;
@@ -127,9 +128,21 @@ public final class Main {
         if (federateFom != null) {
             System.out.println("  Federe (FOMProvider) : " + federateFom);
         }
-        if (userTypes.isActive()) {
-            System.out.println("  Types a responsabilite du developpeur : " + String.join(", ", new LinkedHashSet<>(userTypes.declared))
-                    + (userTypes.strict ? " (mode strict)" : ""));
+        int builtinUserTypeCount = BuiltinUserTypes.registeredNames().size();
+        if (userTypes.isActive() || builtinUserTypeCount > 0) {
+            StringBuilder line = new StringBuilder("  Types a responsabilite du developpeur : ");
+            if (!userTypes.declared.isEmpty()) {
+                line.append(String.join(", ", new LinkedHashSet<>(userTypes.declared)));
+                if (userTypes.strict) line.append(" (mode strict)");
+            } else {
+                line.append("(aucun declare explicitement)");
+            }
+            if (builtinUserTypeCount > 0) {
+                line.append(" + ").append(builtinUserTypeCount)
+                    .append(" type(s) integre(s) au generateur (appliques s'ils sont presents dans la FOM et non "
+                            + "deja ecrases par votre propre arborescence)");
+            }
+            System.out.println(line);
         }
         System.out.println();
 
@@ -686,6 +699,14 @@ public final class Main {
                                           HLATypes mais copiee depuis un fichier fourni, ou, a
                                           defaut, depuis une CLASSE DE SECOURS generee (identique
                                           au code standard). Repetable.
+
+                                          Independamment de cette option : le generateur applique
+                                          aussi, sans rien a declarer ici, les types "integres" au
+                                          generateur lui-meme (src/main/resources/usertypes-builtin/,
+                                          cf. BuiltinUserTypes) quand ils sont presents dans la FOM
+                                          traitee -- votre propre arborescence (--user-types-java/
+                                          -cpp/-config ci-dessous) reste toujours prioritaire pour
+                                          les ecraser au cas par cas.
                   --user-type-java <Nom>=<fichier.java>
                                           Fichier Java du type (declare aussi le type).
                   --user-type-cpp <Nom>=<X.hpp>[,<XCodec.hpp>]
