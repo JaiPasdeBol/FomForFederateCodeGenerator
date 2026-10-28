@@ -21,10 +21,9 @@ import java.util.List;
  *   <li>{@code runtimePackageName} (ex. "rprfom.runtime") : l'infrastructure
  *       d'encodage/decodage HLA, commune a tous les FOM et jamais
  *       specifique a l'un d'eux -- les fichiers "statiques" copies tels
- *       quels depuis les ressources du generateur (IHLAAttributeBase.java,
- *       HLAAttribute.java, IHLAParameterBase.java, HLAParameter.java,
- *       HLAEncoding.java, HLADecoding.java, HLAEncoderDetail.java,
- *       HLADecoderDetail.java, OwnershipState.java, HLAOctet.java et les
+ *       quels depuis les ressources du generateur (HLAAttribute.java,
+ *       HLAParameter.java, HLAEncoding.java, HLADecoding.java,
+ *       HLAEncoderDetail.java, HLADecoderDetail.java, HLAOctet.java et les
  *       autres representations de base HLAUnsignedInteger16/32/64(LE),
  *       HLAInteger16/32/64LE, HLAFloat32/64LE, HLAOctetPair,
  *       HLAASCIIString) ainsi que les fichiers generes qui orchestrent
@@ -34,6 +33,11 @@ import java.util.List;
  * Cette separation repond a une demande explicite : pouvoir distinguer
  * d'un coup d'oeil "les classes generees a partir du FOM" de "la
  * mecanique d'encodage centralisee", sans avoir a lire chaque fichier.
+ * Les interfaces COMMUNES a tous les federes (HLAObjectClass,
+ * HLAInteractionClass, IHLAAttributeBase, IHLAParameterBase, OwnershipState)
+ * ne sont PAS copiees : elles viennent du jar partage rprfom-runtime-api
+ * (package fixe rprfom.api), dont le code genere depend.
+ *
  * Les classes du package racine importent le package runtime via
  * {@code import <runtimePackageName>.*;} pour rester utilisables
  * normalement (HLAAttribute, HLAOctet, etc. restent visibles sans
@@ -849,8 +853,13 @@ public final class JavaGenerator {
         StringBuilder sb = new StringBuilder();
         sb.append("package ").append(packageName).append(";\n\n");
         if (isRootClass) {
-            sb.append("import java.util.HashMap;\nimport java.util.Map;\n\n");
+            sb.append("import java.util.Collections;\nimport java.util.HashMap;\nimport java.util.Map;\n\n");
         }
+        // Contrat PARTAGE (jar rprfom-runtime-api) : toutes les classes generees, quel
+        // que soit leur package, implementent HLAObjectClass -- c'est ce qu'utilise une
+        // couche RTI (HLAbstract...) sans reflexion. Imports explicites : prioritaires
+        // sur les imports "*" ci-dessous en cas d'homonyme.
+        sb.append("import rprfom.api.HLAObjectClass;\nimport rprfom.api.IHLAAttributeBase;\n\n");
         // NOTE : un tableau dynamique nomme du FOM est desormais un type
         // COMPOSE a part entiere (cf. TypeMapper), plus un List<Element>
         // direct -- aucun import de java.util.List n'est donc necessaire
@@ -865,6 +874,7 @@ public final class JavaGenerator {
           .append(" * FOM: ").append(String.join(".", pathFromRoot)).append("\n */\n");
         sb.append("public class ").append(className);
         if (!isRootClass) sb.append(" extends ").append(NameUtils.sanitizeIdentifier(parent.name));
+        else sb.append(" implements HLAObjectClass");
         sb.append(" {\n\n");
         sb.append("    public static final String HLA_OBJECT_CLASS_NAME = \"")
           .append(String.join(".", pathFromRoot)).append("\";\n\n");
@@ -876,6 +886,7 @@ public final class JavaGenerator {
 
         if (isRootClass) {
             sb.append("\n    private final Map<String, IHLAAttributeBase> attributesByName = new HashMap<>();\n");
+            sb.append("    private final Map<String, IHLAAttributeBase> attributesByNameView = Collections.unmodifiableMap(attributesByName);\n");
             sb.append("    private final Map<Long, IHLAAttributeBase> attributesByHandle = new HashMap<>();\n\n");
         }
 
@@ -886,7 +897,14 @@ public final class JavaGenerator {
         }
         sb.append("    }\n");
 
+        // HLAObjectClass : redefini dans CHAQUE classe (nom FOM de la classe la plus derivee).
+        sb.append("\n    @Override\n    public String hlaObjectClassName() {\n")
+          .append("        return HLA_OBJECT_CLASS_NAME;\n    }\n");
+
         if (isRootClass) {
+            sb.append("\n    /** HLAObjectClass : attributs de l'instance par nom FOM, heritage compris (lecture seule). */\n")
+              .append("    @Override\n    public final Map<String, IHLAAttributeBase> attributesByName() {\n")
+              .append("        return attributesByNameView;\n    }\n");
             sb.append("\n    public void bindAttributeHandle(String attributeName, long handle) {\n")
               .append("        IHLAAttributeBase attr = attributesByName.get(attributeName);\n")
               .append("        if (attr != null) {\n            attributesByHandle.put(handle, attr);\n        }\n    }\n\n");
@@ -930,8 +948,10 @@ public final class JavaGenerator {
         StringBuilder sb = new StringBuilder();
         sb.append("package ").append(packageName).append(";\n\n");
         if (isRootClass) {
-            sb.append("import java.util.HashMap;\nimport java.util.Map;\n\n");
+            sb.append("import java.util.Collections;\nimport java.util.HashMap;\nimport java.util.Map;\n\n");
         }
+        // Contrat PARTAGE (jar rprfom-runtime-api), cf. generateObjectClass.
+        sb.append("import rprfom.api.HLAInteractionClass;\nimport rprfom.api.IHLAParameterBase;\n\n");
         sb.append("import static ").append(packageName).append(".HLATypes.*;\n\n");
         // HLAParameter, IHLAParameterBase et les representations de base
         // vivent dans le package runtime -- cf. Javadoc de classe.
@@ -940,6 +960,7 @@ public final class JavaGenerator {
           .append(" * FOM (interaction): ").append(String.join(".", pathFromRoot)).append("\n */\n");
         sb.append("public class ").append(className);
         if (!isRootClass) sb.append(" extends ").append(NameUtils.sanitizeIdentifier(parent.name));
+        else sb.append(" implements HLAInteractionClass");
         sb.append(" {\n\n");
         sb.append("    public static final String HLA_INTERACTION_CLASS_NAME = \"")
           .append(String.join(".", pathFromRoot)).append("\";\n\n");
@@ -951,6 +972,7 @@ public final class JavaGenerator {
 
         if (isRootClass) {
             sb.append("\n    private final Map<String, IHLAParameterBase> parametersByName = new HashMap<>();\n");
+            sb.append("    private final Map<String, IHLAParameterBase> parametersByNameView = Collections.unmodifiableMap(parametersByName);\n");
             sb.append("    private final Map<Long, IHLAParameterBase> parametersByHandle = new HashMap<>();\n\n");
         }
 
@@ -961,7 +983,14 @@ public final class JavaGenerator {
         }
         sb.append("    }\n");
 
+        // HLAInteractionClass : redefini dans CHAQUE classe (nom FOM de la classe la plus derivee).
+        sb.append("\n    @Override\n    public String hlaInteractionClassName() {\n")
+          .append("        return HLA_INTERACTION_CLASS_NAME;\n    }\n");
+
         if (isRootClass) {
+            sb.append("\n    /** HLAInteractionClass : parametres de l'instance par nom FOM, heritage compris (lecture seule). */\n")
+              .append("    @Override\n    public final Map<String, IHLAParameterBase> parametersByName() {\n")
+              .append("        return parametersByNameView;\n    }\n");
             sb.append("\n    public void bindParameterHandle(String parameterName, long handle) {\n")
               .append("        IHLAParameterBase param = parametersByName.get(parameterName);\n")
               .append("        if (param != null) {\n            parametersByHandle.put(handle, param);\n        }\n    }\n\n");

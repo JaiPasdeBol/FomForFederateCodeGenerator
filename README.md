@@ -13,9 +13,13 @@ C'est un miroir automatisé de tout ce qu'on a construit à la main pour
 
 ## Build et exécution
 
+Le projet a deux modules Maven (voir [« API d'exécution partagée »](#api-dexécution-partagée-rprfom-runtime-api)) :
+`rprfom-runtime-api` (les interfaces communes au code Java généré) et `rprfom-codegen`
+(le générateur). Les deux se construisent et s'installent depuis la racine :
+
 ```
-mvn package
-java -jar target/rprfom-codegen.jar \
+mvn clean install
+java -jar rprfom-codegen/target/rprfom-codegen.jar \
     --fom RPR-Base.xml \
     --fom RPR-Physical.xml \
     --fom MonEnrichissement.xml \
@@ -74,8 +78,7 @@ Le projet Java produit dans `--out-java` sépare, dans deux sous-dossiers
   y compris le padding sur les octet boundaries IEEE 1516.2),
   `HLAAlignment.java` (table des octet boundaries par type),
   `HLAEncoder.java`/`HLADecoder.java` (registre par type qui orchestre
-  l'encodage), `HLAAttribute.java`/`HLAParameter.java` et leurs
-  interfaces, `OwnershipState.java`, ainsi que les représentations de
+  l'encodage), `HLAAttribute.java`/`HLAParameter.java`, ainsi que les représentations de
   base (`HLAOctet.java`, `HLAUnsignedInteger16/32/64(LE).java`,
   `HLAInteger16/32/64LE.java`, `HLAFloat32/64LE.java`,
   `HLAOctetPair.java`, `HLAASCIIString.java`). Certains de ces fichiers
@@ -83,6 +86,11 @@ Le projet Java produit dans `--out-java` sépare, dans deux sous-dossiers
   (`HLAAlignment`/`HLAEncoder`/`HLADecoder`) sont générés à partir du
   FOM (ils doivent connaître ses types), mais aucun des deux groupes ne
   contient de classe métier.
+
+Les **interfaces** communes (`IHLAAttributeBase`, `IHLAParameterBase`,
+`OwnershipState`, `HLAObjectClass`, `HLAInteractionClass`) ne sont pas copiées :
+elles viennent du jar partagé `rprfom-runtime-api` (package fixe `rprfom.api`),
+dont dépend le projet Java généré.
 
 Les classes du package racine importent le package `runtime` (`import
 <package>.runtime.*;`) pour rester utilisables normalement — `Radio`
@@ -116,6 +124,37 @@ changent en conséquence — par exemple `Radio.hpp` inclut désormais
 `"HLATypes.hpp"`. Un projet qui compile déjà avec `-I <dossier>/include`
 n'a rien d'autre à changer.
 
+## API d'exécution partagée (`rprfom-runtime-api`)
+
+Le runtime Java est copié dans le package de **chaque** projet généré
+(`fr.hlabstract.radar.fom.runtime`, `fr.hlabstract.rafale.fom.runtime`…) : deux
+`HLAAttribute` générés pour deux fédérés sont donc deux classes différentes. Une
+couche qui doit manipuler n'importe quelle classe générée sans la connaître à la
+compilation, comme HLAbstract, a besoin d'un contrat **commun**. C'est le rôle du
+module `rprfom-runtime-api` (`com.rprfom:rprfom-runtime-api`, package fixe
+`rprfom.api`, jamais réécrit, aucune dépendance) :
+
+| Interface | Implémentée par | Rôle |
+|---|---|---|
+| `HLAObjectClass` | la classe d'objet racine générée (ex. `BaseEntity`), donc toutes ses sous-classes | `hlaObjectClassName()` (nom FOM complet, redéfini par chaque classe) et `attributesByName()` (attributs de l'instance par nom FOM, héritage compris, en lecture seule) |
+| `HLAInteractionClass` | la classe d'interaction racine générée | `hlaInteractionClassName()`, `parametersByName()` |
+| `IHLAAttributeBase` | `HLAAttribute<T>` | encodage, décodage, publication, ownership, `hasValue()` |
+| `IHLAParameterBase` | `HLAParameter<T>` | `hasValue()`, `encode()`, `decodeFrom()` |
+| `OwnershipState` | — | état d'ownership d'un attribut (`UNOWNED`, `OWNED`, `DIVESTING`, `ACQUIRING`) |
+
+Seule exigence que l'interface ne peut pas exprimer : chaque classe générée garde
+un constructeur public sans argument.
+
+Conséquences :
+- le `pom.xml` du projet Java généré dépend de `rprfom-runtime-api` ; un projet qui
+  compile directement les sources générées (comme les fédérés HLAbstract) doit
+  l'avoir sur son classpath (HLAbstract le transmet) ;
+- le générateur et son API partagent la même version : régénérer le code après
+  toute mise à jour du générateur ;
+- le code qui importait `<package>.runtime.OwnershipState` (ou `IHLAAttributeBase`,
+  `IHLAParameterBase`) doit importer `rprfom.api.OwnershipState` ;
+- le C++ et la sortie Unreal ne sont pas concernés.
+
 ## Génération ciblée pour un fédéré (`--federate-fom`)
 
 Par défaut (sans `--federate-fom`), l'outil génère une classe pour
@@ -128,7 +167,7 @@ périmètre (`FOMObject`/`FOMInteraction`, format produit par l'outil
 FOMProvider, conforme à `federatesFOMProvider.xsd`) :
 
 ```
-java -jar target/rprfom-codegen.jar \
+java -jar rprfom-codegen/target/rprfom-codegen.jar \
     --fom RPR-Base.xml --fom RPR-Physical.xml --fom MonEnrichissement.xml \
     --out-cpp ./out/cpp --out-java ./out/java --java-package com.example.rprfom \
     --federate-fom RafaleCockpit.xml
@@ -310,9 +349,9 @@ d'atteindre le parseur.
 | Fichier | C++ | Java | Origine |
 |---|---|---|---|
 | `HLAAttribute` | `.hpp` | `.java` | statique (copié depuis les ressources) |
-| `IHLAAttribute(Base)` | `.h` | `.java` | statique |
+| `IHLAAttribute(Base)` | `.h` | `.java` | C++ : statique ; Java : jar `rprfom-runtime-api` |
 | `HLAEncoding` / `HLADecoding` | `.hpp` | `.java` | statique |
-| `HLAOwnership` / `OwnershipState` | `.hpp` | `.java` | statique |
+| `HLAOwnership` / `OwnershipState` | `.hpp` | `.java` | C++ : statique ; Java : jar `rprfom-runtime-api` |
 | `HLAOctet`, `HLAUnsignedInteger16/32` | — | `.java` | statique (Java uniquement, cf. plus bas) |
 | `HLATypes` | `.hpp` | `.java` | **généré** depuis le FOM |
 | `HLAAlignment` | `.hpp` | `.java` | **généré** |
@@ -630,7 +669,7 @@ fonctions d'encodage/décodage) en Blueprint, pour le projet plugin Unreal
 d'export `_API`) : les fichiers générés sont à copier dans le plugin existant/à créer.
 
 ```
-java -jar target/rprfom-codegen.jar \
+java -jar rprfom-codegen/target/rprfom-codegen.jar \
     --fom RPR-Base.xml \
     --out-cpp ./out/cpp \
     --out-java ./out/java \

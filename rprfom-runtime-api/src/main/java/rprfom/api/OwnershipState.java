@@ -1,7 +1,7 @@
-package rprfom;
+package rprfom.api;
 
 /**
- * OwnershipState.java
+ * OwnershipState.java -- fait partie de rprfom-runtime-api (jar partage).
  *
  * Miroir exact de HLAOwnership.hpp. Etat d'ownership (propriete) d'un
  * attribut HLA, independant du type T de l'attribut. Modelise une

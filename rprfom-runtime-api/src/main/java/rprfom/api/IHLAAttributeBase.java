@@ -1,9 +1,9 @@
-package rprfom;
+package rprfom.api;
 
 import java.time.Instant;
 
 /**
- * IHLAAttributeBase.java
+ * IHLAAttributeBase.java -- fait partie de rprfom-runtime-api (jar partage).
  *
  * Interface non generique, exposant les operations d'un HLAAttribute&lt;T&gt;
  * qui ne dependent pas de T. Permet de manipuler des attributs de types
@@ -61,6 +61,13 @@ public interface IHLAAttributeBase {
      * valeur, donc l'appelant n'a jamais besoin de connaitre T.
      */
     byte[] encode();
+
+    // ------------------------------------------------------------------
+    // Valeur (independant de T)
+    // ------------------------------------------------------------------
+
+    /** true si l'attribut porte une valeur (set(), valeur initiale ou reflect deja recu). */
+    boolean hasValue();
 
     // ------------------------------------------------------------------
     // Cote souscripteur

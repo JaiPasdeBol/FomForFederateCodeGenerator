@@ -360,15 +360,17 @@ public final class Main {
         Files.createDirectories(javaSrc);
         Files.createDirectories(javaRuntimeSrc);
         for (String staticFile : List.of(
-                "IHLAAttributeBase.java", "HLAAttribute.java", "HLAEncoding.java", "HLADecoding.java",
-                "HLAEncoderDetail.java", "HLADecoderDetail.java", "OwnershipState.java",
+                // IHLAAttributeBase, IHLAParameterBase et OwnershipState ne sont plus copies :
+                // ils viennent du jar partage rprfom-runtime-api (package rprfom.api).
+                "HLAAttribute.java", "HLAEncoding.java", "HLADecoding.java",
+                "HLAEncoderDetail.java", "HLADecoderDetail.java",
                 "HLAOctet.java", "HLAUnsignedInteger16.java", "HLAUnsignedInteger32.java",
                 "HLAInteger16LE.java", "HLAUnsignedInteger16LE.java",
                 "HLAInteger32LE.java", "HLAUnsignedInteger32LE.java",
                 "HLAInteger64LE.java", "HLAUnsignedInteger64.java", "HLAUnsignedInteger64LE.java",
                 "HLAFloat32LE.java", "HLAFloat64LE.java",
                 "HLAOctetPair.java", "HLAASCIIString.java",
-                "IHLAParameterBase.java", "HLAParameter.java")) {
+                "HLAParameter.java")) {
             copyResourceAsJavaPackage("runtime/java/" + staticFile, javaRuntimeSrc.resolve(staticFile), javaRuntimePackage);
         }
 
@@ -586,6 +588,12 @@ public final class Main {
         }
     }
 
+    /**
+     * Version de rprfom-runtime-api dont depend le code Java genere. A garder egale a la
+     * version du projet (pom parent) : le generateur et son API partagee evoluent ensemble.
+     */
+    static final String RUNTIME_API_VERSION = "1.0.0";
+
     private static String generatePom(String javaPackage, boolean withConformance) {
         String pom = """
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -605,6 +613,16 @@ public final class Main {
                         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
                     </properties>
 
+                    <dependencies>
+                        <!-- Interfaces communes a tout code genere (rprfom.api) : installer
+                             FomForFederateCodeGenerator une fois (mvn install a sa racine). -->
+                        <dependency>
+                            <groupId>com.rprfom</groupId>
+                            <artifactId>rprfom-runtime-api</artifactId>
+                            <version>__API_VERSION__</version>
+                        </dependency>
+                    </dependencies>
+
                     <build>
                         <plugins>
                             <plugin>
@@ -615,7 +633,7 @@ public final class Main {
                         </plugins>
                     </build>
                 </project>
-                """.replace("com.rprfom.generated", javaPackage);
+                """.replace("com.rprfom.generated", javaPackage).replace("__API_VERSION__", RUNTIME_API_VERSION);
         if (withConformance) {
             // Test de conformite des types a responsabilite du developpeur, lance par "mvn test"
             // (sans JUnit : le programme leve une exception en cas d'ecart, ce qui fait echouer le build).

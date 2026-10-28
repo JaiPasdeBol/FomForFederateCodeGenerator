@@ -1,7 +1,7 @@
-package rprfom;
+package rprfom.api;
 
 /**
- * IHLAParameterBase.java
+ * IHLAParameterBase.java -- fait partie de rprfom-runtime-api (jar partage).
  *
  * Miroir de IHLAAttributeBase.java, sans ownership ni suivi temporel --
  * une interaction HLA est un message envoye une fois

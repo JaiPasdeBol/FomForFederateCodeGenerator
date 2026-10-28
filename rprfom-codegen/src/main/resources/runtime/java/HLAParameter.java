@@ -2,6 +2,9 @@ package rprfom;
 
 import java.util.List;
 
+// Interface PARTAGEE (jar rprfom-runtime-api), commune a tous les federes.
+import rprfom.api.IHLAParameterBase;
+
 /**
  * HLAParameter.java
  *

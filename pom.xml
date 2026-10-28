@@ -1,71 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FomForFederateCodeGenerator : projet parent (agregateur) de deux modules.
+
+    rprfom-runtime-api : interfaces Java PARTAGEES par tout le code genere et par les
+                         couches qui l'utilisent (HLAbstract) : HLAObjectClass,
+                         HLAInteractionClass, IHLAAttributeBase, IHLAParameterBase,
+                         OwnershipState (package rprfom.api). Aucune dependance.
+    rprfom-codegen     : le generateur (inchange pour l'utilisateur : memes coordonnees
+                         Maven com.rprfom:rprfom-codegen:1.0.0, meme ligne de commande).
+
+  Build et installation des deux modules :  mvn clean install   (a cette racine)
+  Jar executable du generateur :            rprfom-codegen/target/rprfom-codegen.jar
+
+  Les deux modules partagent la meme version : le code genere par une version du
+  generateur depend de rprfom-runtime-api de la MEME version.
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.rprfom</groupId>
-    <artifactId>rprfom-codegen</artifactId>
+    <artifactId>rprfom-parent</artifactId>
     <version>1.0.0</version>
-    <packaging>jar</packaging>
+    <packaging>pom</packaging>
+    <name>rprfom-parent</name>
 
-    <name>rprfom-codegen</name>
-    <description>
-        Genere des bibliotheques C++ et Java (HLAAttribute, HLAEncoder/
-        HLADecoder, hierarchie d'objectClass, ownership) a partir d'un ou
-        plusieurs fichiers FOM XML (format OMT SISO-STD-004.1), y compris
-        des fichiers d'enrichissement personnalises.
-    </description>
+    <modules>
+        <module>rprfom-runtime-api</module>
+        <module>rprfom-codegen</module>
+    </modules>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <exec.mainClass>rprfom.codegen.Main</exec.mainClass>
     </properties>
 
-    <!-- Aucune dependance externe : parsing XML via javax.xml.parsers (JDK). -->
-
     <build>
-        <finalName>${project.artifactId}</finalName>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-            </plugin>
-
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.2.0</version>
-                <configuration>
-                    <mainClass>${exec.mainClass}</mainClass>
-                </configuration>
-            </plugin>
-
-            <!-- Jar executable autonome : java -jar target/rprfom-codegen.jar ... -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.4.1</version>
-                <configuration>
-                    <archive>
-                        <manifest>
-                            <mainClass>rprfom.codegen.Main</mainClass>
-                        </manifest>
-                    </archive>
-                </configuration>
-            </plugin>
-
-            <!-- S'assure que src/main/resources/runtime/** est bien copie tel
-                 quel dans le jar (comportement par defaut de maven-resources-plugin,
-                 rendu explicite ici). -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.3.1</version>
-            </plugin>
-        </plugins>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.4.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.3.1</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
     </build>
 </project>

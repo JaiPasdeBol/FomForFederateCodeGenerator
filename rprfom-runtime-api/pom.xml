@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  rprfom-runtime-api : contrat Java partage entre le code genere par rprfom-codegen et
+  les couches qui l'utilisent (HLAbstract...). Package fixe rprfom.api, jamais reecrit
+  par le generateur (contrairement au runtime copie dans le package de chaque federe).
+  Aucune dependance externe.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.rprfom</groupId>
+        <artifactId>rprfom-parent</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>rprfom-runtime-api</artifactId>
+    <packaging>jar</packaging>
+    <name>rprfom-runtime-api</name>
+    <description>Interfaces communes au code Java genere par rprfom-codegen (HLAObjectClass, IHLAAttributeBase...)</description>
+</project>

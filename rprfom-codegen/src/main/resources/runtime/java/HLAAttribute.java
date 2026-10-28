@@ -3,6 +3,11 @@ package rprfom;
 import java.time.Instant;
 import java.util.List;
 
+// Interfaces et etat d'ownership PARTAGES (jar rprfom-runtime-api) : communs a
+// tous les federes, quel que soit le package de generation.
+import rprfom.api.IHLAAttributeBase;
+import rprfom.api.OwnershipState;
+
 /**
  * HLAAttribute.java
  *
@@ -214,6 +219,11 @@ public final class HLAAttribute<T> implements IHLAAttributeBase {
 
     public T get() {
         return value;
+    }
+
+    @Override
+    public boolean hasValue() {
+        return value != null;
     }
 
     /**
